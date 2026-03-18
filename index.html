@@ -12,6 +12,7 @@
 </head>
 <body>
     <div class="app-container">
+        <!-- Header -->
         <header class="app-header">
             <div class="logo-container">
                 <i class="fa-solid fa-notes-medical logo-icon"></i>
@@ -21,42 +22,46 @@
         </header>
 
         <main class="app-main">
-            <!-- Settings -->
+            <!-- GAS URL設定 -->
             <div class="settings-panel">
-                <label for="gas-url-input" class="settings-label"><i class="fa-solid fa-link"></i> GAS WebアプリURL</label>
+                <label for="gas-url-input" class="settings-label">
+                    <i class="fa-solid fa-link"></i> GAS WebアプリURL（連携先の設定）
+                </label>
                 <input type="password" id="gas-url-input" class="settings-input" placeholder="https://script.google.com/macros/s/.../exec">
                 <small class="settings-hint">※初回のみ入力。ブラウザに保存されます。</small>
             </div>
 
-            <!-- Single Upload Area -->
+            <!-- モード切り替えタブ -->
+            <div class="mode-tabs">
+                <button class="mode-tab active" id="tab-questionnaire" data-mode="questionnaire">
+                    <i class="fa-solid fa-clipboard-user"></i> 問診票
+                </button>
+                <button class="mode-tab" id="tab-notebook" data-mode="notebook">
+                    <i class="fa-solid fa-book-medical"></i> お薬手帳
+                </button>
+            </div>
+
+            <!-- モード説明カード -->
+            <div class="mode-description" id="mode-description">
+                <i class="fa-solid fa-circle-info mode-desc-icon"></i>
+                <p id="mode-description-text">読み取り内容を自動送信します。妊娠・授乳・小児などの項目は自動でスキップ処理されます。</p>
+            </div>
+
+            <!-- アップロードエリア -->
             <section class="upload-section">
                 <div class="drop-zone" id="drop-zone">
                     <i class="fa-solid fa-cloud-arrow-up upload-icon"></i>
-                    <p class="drop-text">お薬手帳 または 問診票の画像をドロップ<br>または</p>
+                    <p class="drop-text" id="drop-text">問診票の画像をドロップ<br>または</p>
                     <input type="file" id="file-input" accept="image/jpeg, image/png, image/webp" hidden>
-                    <button class="btn btn-secondary" onclick="document.getElementById('file-input').click()">ファイルを選択</button>
+                    <button class="btn btn-upload" onclick="document.getElementById('file-input').click()">ファイルを選択</button>
                     <div id="preview-container" class="preview-container" style="display: none;">
                         <img id="image-preview" src="" alt="プレビュー">
-                        <button class="btn-icon remove-btn" id="remove-btn" title="画像を削除"><i class="fa-solid fa-xmark"></i></button>
+                        <button class="btn-remove" id="remove-btn" title="画像を削除"><i class="fa-solid fa-xmark"></i></button>
                     </div>
-                </div>
-
-                <!-- Action Buttons -->
-                <div class="action-buttons">
-                    <button class="btn btn-action btn-notebook" id="analyze-btn-notebook" disabled>
-                        <i class="fa-solid fa-book-medical"></i>
-                        <span class="btn-action-label">お薬手帳</span>
-                        <span class="btn-action-desc">医薬品名を抽出</span>
-                    </button>
-                    <button class="btn btn-action btn-questionnaire" id="analyze-btn-questionnaire" disabled>
-                        <i class="fa-solid fa-clipboard-user"></i>
-                        <span class="btn-action-label">問診票</span>
-                        <span class="btn-action-desc">読み取り→自動送信</span>
-                    </button>
                 </div>
             </section>
 
-            <!-- Loading Overlay (shared) -->
+            <!-- Loading Overlay -->
             <div id="loading-overlay" class="loading-overlay" style="display: none;">
                 <div class="spinner"></div>
                 <p id="loading-text">AIが画像を解析中...</p>
@@ -67,10 +72,10 @@
                 <div class="result-header">
                     <h3><i class="fa-solid fa-book-medical"></i> お薬手帳 抽出結果</h3>
                     <div class="result-actions">
-                        <button class="btn btn-outline" id="copy-btn-notebook">
+                        <button class="btn btn-action-sm" id="copy-btn-notebook">
                             <i class="fa-regular fa-copy"></i> コピー
                         </button>
-                        <button class="btn btn-outline" id="clear-btn-notebook">
+                        <button class="btn btn-action-sm" id="clear-btn-notebook">
                             <i class="fa-solid fa-eraser"></i> クリア
                         </button>
                     </div>
@@ -85,10 +90,10 @@
                 <div class="result-header">
                     <h3><i class="fa-solid fa-clipboard-user"></i> 問診票 処理結果</h3>
                     <div class="result-actions">
-                        <button class="btn btn-outline" id="copy-btn-questionnaire">
+                        <button class="btn btn-action-sm" id="copy-btn-questionnaire">
                             <i class="fa-regular fa-copy"></i> コピー
                         </button>
-                        <button class="btn btn-outline" id="clear-btn-questionnaire">
+                        <button class="btn btn-action-sm" id="clear-btn-questionnaire">
                             <i class="fa-solid fa-eraser"></i> クリア
                         </button>
                     </div>
@@ -106,6 +111,11 @@
                 </div>
             </section>
         </main>
+
+        <!-- フッターヒント -->
+        <footer class="app-footer">
+            <p>画像をアップロードすると自動で解析・送信されます</p>
+        </footer>
 
         <div id="toast" class="toast">コピーしました</div>
     </div>
