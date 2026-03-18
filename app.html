@@ -1,0 +1,376 @@
+<script>
+// DOM Elements
+const toast = document.getElementById('toast');
+const dropZone = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+const previewContainer = document.getElementById('preview-container');
+const imagePreview = document.getElementById('image-preview');
+const removeBtn = document.getElementById('remove-btn');
+const analyzeBtnNotebook = document.getElementById('analyze-btn-notebook');
+const analyzeBtnQuestionnaire = document.getElementById('analyze-btn-questionnaire');
+const loadingOverlay = document.getElementById('loading-overlay');
+const loadingText = document.getElementById('loading-text');
+const gasUrlInput = document.getElementById('gas-url-input');
+
+// State
+let currentFile = null;
+let base64Data = null;
+
+// --- GAS URL persistence ---
+if (localStorage.getItem('gasUrl')) {
+    gasUrlInput.value = localStorage.getItem('gasUrl');
+}
+gasUrlInput.addEventListener('change', (e) => {
+    localStorage.setItem('gasUrl', e.target.value.trim());
+});
+
+// --- Image Handling (single shared handler) ---
+dropZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropZone.classList.add('dragover');
+});
+
+dropZone.addEventListener('dragleave', () => {
+    dropZone.classList.remove('dragover');
+});
+
+dropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropZone.classList.remove('dragover');
+    if (e.dataTransfer.files.length > 0) {
+        handleFile(e.dataTransfer.files[0]);
+    }
+});
+
+fileInput.addEventListener('change', (e) => {
+    if (e.target.files.length > 0) {
+        handleFile(e.target.files[0]);
+    }
+});
+
+removeBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    clearImage();
+});
+
+function handleFile(file) {
+    if (!file.type.match('image.*')) {
+        showToast('画像ファイル(JPEG/PNG)を選択してください');
+        return;
+    }
+    currentFile = file;
+    analyzeBtnNotebook.disabled = false;
+    analyzeBtnQuestionnaire.disabled = false;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        imagePreview.src = e.target.result;
+        previewContainer.style.display = 'flex';
+        base64Data = e.target.result.split(',')[1];
+    };
+    reader.readAsDataURL(file);
+}
+
+function clearImage() {
+    currentFile = null;
+    base64Data = null;
+    fileInput.value = '';
+    previewContainer.style.display = 'none';
+    imagePreview.src = '';
+    analyzeBtnNotebook.disabled = true;
+    analyzeBtnQuestionnaire.disabled = true;
+}
+
+function getBase64() { return base64Data; }
+function getMimeType() { return currentFile ? currentFile.type : null; }
+
+// --- Notebook Analysis ---
+const resultNotebook = document.getElementById('result-notebook');
+const resultTextNotebook = document.getElementById('result-text-notebook');
+const copyBtnNotebook = document.getElementById('copy-btn-notebook');
+const clearBtnNotebook = document.getElementById('clear-btn-notebook');
+
+analyzeBtnNotebook.addEventListener('click', async () => {
+    if (!getBase64()) return;
+
+    // Show loading
+    loadingText.textContent = 'AIがお薬手帳を解析中...';
+    loadingOverlay.style.display = 'flex';
+    analyzeBtnNotebook.disabled = true;
+    analyzeBtnQuestionnaire.disabled = true;
+
+    // Hide previous results
+    resultNotebook.style.display = 'none';
+    hideQuestionnaireResult();
+
+    try {
+        const gasUrl = gasUrlInput.value.trim() || localStorage.getItem('gasUrl');
+
+        let extractedText = "";
+
+        if (gasUrl) {
+            const payload = {
+                type: "notebook",
+                image: getBase64(),
+                mimeType: getMimeType()
+            };
+
+            const response = await fetch(gasUrl, {
+                method: 'POST',
+                body: JSON.stringify(payload),
+            });
+
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            const result = await response.json();
+
+            if (result.status === "success" && result.data) {
+                extractedText = result.data;
+            } else {
+                throw new Error(result.message || "Unknown API Error");
+            }
+        } else {
+            extractedText = "ロキソプロフェンナトリウム錠60mg「EMEC」\nレバミピド錠100mg「オーハラ」\nセフジニルカプセル100mg「サワイ」";
+            console.warn("GAS URL not set, using mock data for Notebook.");
+        }
+
+        resultTextNotebook.value = extractedText;
+        resultNotebook.style.display = 'flex';
+
+    } catch (error) {
+        console.error("Error analyzing notebook:", error);
+        resultTextNotebook.value = "エラーが発生しました。\n詳細: " + error.message + "\n\n※GASバックエンドのURLが正しく設定されているか確認してください。";
+        resultNotebook.style.display = 'flex';
+    } finally {
+        loadingOverlay.style.display = 'none';
+        if (currentFile) {
+            analyzeBtnNotebook.disabled = false;
+            analyzeBtnQuestionnaire.disabled = false;
+        }
+    }
+});
+
+copyBtnNotebook.addEventListener('click', () => {
+    if (resultTextNotebook.value) {
+        navigator.clipboard.writeText(resultTextNotebook.value)
+            .then(() => showToast('クリップボードにコピーしました'))
+            .catch(err => {
+                console.error('Copy failed:', err);
+                showToast('コピーに失敗しました');
+            });
+    }
+});
+
+clearBtnNotebook.addEventListener('click', () => {
+    resultTextNotebook.value = '';
+    resultNotebook.style.display = 'none';
+    clearImage();
+});
+
+
+// --- Questionnaire Analysis ---
+const resultQuestionnaire = document.getElementById('result-questionnaire');
+const statusPanel = document.getElementById('status-panel-questionnaire');
+let lastQuestionnaireData = null;
+
+function hideQuestionnaireResult() {
+    resultQuestionnaire.style.display = 'none';
+    document.getElementById('success-message-questionnaire').style.display = 'none';
+    document.getElementById('error-message-questionnaire').style.display = 'none';
+}
+
+/**
+ * 問診票データを「初回問診引用」フォーマットに整形する
+ */
+function formatQuestionnaireForClipboard(d) {
+    // 患者状態: 該当なし/なし → "なし" 表記
+    const rawCondition = d['患者状態'] || 'なし';
+    const isNoCondition = (rawCondition === 'なし' || rawCondition === '該当なし');
+    const conditionDisplay = isNoCondition ? 'なし' : rawCondition;
+
+    // 手帳活用: お薬手帳 + 手帳タイプ を結合
+    let bookletDisplay = d['お薬手帳'] || 'なし';
+    if (bookletDisplay === 'あり') {
+        const bookletType = d['手帳タイプ'];
+        if (bookletType && bookletType !== 'なし') {
+            bookletDisplay = 'あり(' + bookletType + ')';
+        }
+    }
+
+    // 既往歴 + 詳細
+    let historyDisplay = d['既往歴'] || 'なし';
+    const historyDetail = d['既往歴詳細'];
+    if (historyDetail && historyDetail !== 'なし' && historyDetail !== '') {
+        historyDisplay += ', ' + historyDetail;
+    }
+
+    // 花粉症・アレルゲン（環境アレルギー + 花粉症タイプ）
+    let envAllergyDisplay = d['環境アレルギー'] || 'なし';
+
+    // 副作用歴・薬アレルギー
+    const drugAllergy = d['薬アレルギー'] || 'なし';
+    const drugAllergyDetail = d['薬アレルギー詳細'];
+    let drugAllergyDisplay = '薬・副作用等:' + drugAllergy;
+    if (drugAllergy === 'あり' && drugAllergyDetail && drugAllergyDetail !== 'なし' && drugAllergyDetail !== '') {
+        drugAllergyDisplay = '薬・副作用等:' + drugAllergyDetail;
+    }
+
+    // 食品アレルギー
+    const foodAllergy = d['食品アレルギー'] || 'なし';
+    const foodAllergyDetail = d['食品アレルギー詳細'];
+    let foodAllergyDisplay = foodAllergy;
+    if (foodAllergy === 'あり' && foodAllergyDetail && foodAllergyDetail !== 'なし' && foodAllergyDetail !== '') {
+        foodAllergyDisplay = 'あり (' + foodAllergyDetail + ')';
+    }
+
+    // 定期服用薬・サプリ・OTC
+    const currentPresc = d['他院処方'] || 'なし';
+    const currentPrescDetail = d['他院処方詳細'];
+    let prescPart = '他院処方:' + currentPresc;
+    if (currentPresc === 'あり' && currentPrescDetail && currentPrescDetail !== 'なし' && currentPrescDetail !== '') {
+        prescPart = '他院処方:' + currentPrescDetail;
+    }
+
+    const otcList = d['市販薬・サプリメント'] || 'なし';
+    const otcDetail = d['市販薬詳細'];
+    let otcPart = '市販薬･サプリ:' + otcList;
+    if (otcList !== 'なし' && otcDetail && otcDetail !== 'なし' && otcDetail !== '') {
+        otcPart = '市販薬･サプリ:' + otcList + ' (' + otcDetail + ')';
+    }
+
+    // 飲食物
+    const alcohol = d['飲酒'] || 'なし';
+    const foodDrink = d['飲食物'] || 'なし';
+    const foodDrinkDetail = d['飲食物詳細'];
+    let foodDrinkPart = foodDrink;
+    if (foodDrinkDetail && foodDrinkDetail !== 'なし' && foodDrinkDetail !== '') {
+        foodDrinkPart += ', ' + foodDrinkDetail;
+    }
+
+    // 生活像
+    const driving = d['運転'] || 'なし';
+    const heightWork = d['高所作業'] || 'なし';
+    const smoking = d['喫煙'] || 'なし';
+
+    const lines = [
+        '【初回問診引用】',
+        '■電話番号: ' + (d['電話番号'] || 'なし'),
+        '■患者様の状態: ' + conditionDisplay,
+        '■後発品変更希望: ' + (d['ジェネリック希望'] || 'なし'),
+        '■手帳活用の有無: ' + bookletDisplay,
+        '■既往歴: ' + historyDisplay,
+        '■花粉症・アレルゲンについて: ' + envAllergyDisplay,
+        '■副作用歴、薬物アレルギー: ' + drugAllergyDisplay,
+        '■食物等アレルギー: ' + foodAllergyDisplay,
+        '■定期的服用薬・サプリメント・OTC: ' + prescPart + ' / ' + otcPart,
+        '■飲食物の摂取状況等: 酒:' + alcohol + ' / 飲食物:' + foodDrinkPart,
+        '■薬学的管理に必要な患者の生活像: 妊娠・授乳・小児:' + conditionDisplay + ' / 運転:' + driving + ' / 高所作業:' + heightWork + ' / コンタクト:なし / 喫煙:' + smoking
+    ];
+
+    return lines.join('\n');
+}
+
+analyzeBtnQuestionnaire.addEventListener('click', async () => {
+    if (!getBase64()) return;
+
+    const gasUrl = gasUrlInput.value.trim();
+    if (!gasUrl) {
+        showToast('GASのWebアプリURLを入力してください');
+        gasUrlInput.focus();
+        return;
+    }
+
+    // Show loading
+    loadingText.textContent = 'AIが問診票を解析・送信中...';
+    loadingOverlay.style.display = 'flex';
+    analyzeBtnNotebook.disabled = true;
+    analyzeBtnQuestionnaire.disabled = true;
+
+    // Hide previous results
+    resultNotebook.style.display = 'none';
+    hideQuestionnaireResult();
+
+    try {
+        const payload = {
+            type: "questionnaire",
+            image: getBase64(),
+            mimeType: getMimeType()
+        };
+
+        const response = await fetch(gasUrl, {
+            method: 'POST',
+            body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) throw new Error('HTTP error! status: ' + response.status);
+        const result = await response.json();
+
+        if (result.status === "success") {
+            lastQuestionnaireData = result.data;
+            resultQuestionnaire.style.display = 'flex';
+            const successMsg = document.getElementById('success-message-questionnaire');
+            successMsg.style.display = 'flex';
+            if (result.data) {
+                // 「初回問診引用」フォーマットで表示
+                const formattedText = formatQuestionnaireForClipboard(result.data);
+                document.getElementById('json-preview-questionnaire').textContent = formattedText;
+            }
+        } else {
+            throw new Error(result.message || "スプレッドシートへの保存に失敗しました。");
+        }
+
+    } catch (error) {
+        console.error("Error processing questionnaire:", error);
+        resultQuestionnaire.style.display = 'flex';
+        const errorMsg = document.getElementById('error-message-questionnaire');
+        errorMsg.style.display = 'flex';
+        document.getElementById('error-text-questionnaire').textContent = error.message;
+    } finally {
+        loadingOverlay.style.display = 'none';
+        if (currentFile) {
+            analyzeBtnNotebook.disabled = false;
+            analyzeBtnQuestionnaire.disabled = false;
+        }
+    }
+});
+
+// Questionnaire Copy button - 「初回問診引用」フォーマットでコピー
+const copyBtnQuestionnaire = document.getElementById('copy-btn-questionnaire');
+const clearBtnQuestionnaire = document.getElementById('clear-btn-questionnaire');
+
+copyBtnQuestionnaire.addEventListener('click', () => {
+    const preview = document.getElementById('json-preview-questionnaire');
+    if (preview.textContent) {
+        navigator.clipboard.writeText(preview.textContent)
+            .then(() => showToast('初回問診引用をクリップボードにコピーしました'))
+            .catch(err => {
+                console.error('Copy failed:', err);
+                showToast('コピーに失敗しました');
+            });
+    }
+});
+
+// Questionnaire Clear button
+clearBtnQuestionnaire.addEventListener('click', () => {
+    lastQuestionnaireData = null;
+    hideQuestionnaireResult();
+    clearImage();
+});
+
+
+// --- Utils ---
+function showToast(message) {
+    toast.textContent = message;
+    toast.classList.add('show');
+    setTimeout(() => {
+        toast.classList.remove('show');
+    }, 3000);
+}
+
+// OS Theme detection
+if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+    document.body.setAttribute('data-theme', 'dark');
+}
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+    document.body.setAttribute('data-theme', e.matches ? 'dark' : 'light');
+});
+</script>
