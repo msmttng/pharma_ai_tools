@@ -1,181 +1,150 @@
 // DOM Elements
-const tabs = document.querySelectorAll('.tab-btn');
-const tabContents = document.querySelectorAll('.tab-content');
 const toast = document.getElementById('toast');
+const dropZone = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+const previewContainer = document.getElementById('preview-container');
+const imagePreview = document.getElementById('image-preview');
+const removeBtn = document.getElementById('remove-btn');
+const analyzeBtnNotebook = document.getElementById('analyze-btn-notebook');
+const analyzeBtnQuestionnaire = document.getElementById('analyze-btn-questionnaire');
+const loadingOverlay = document.getElementById('loading-overlay');
+const loadingText = document.getElementById('loading-text');
+const gasUrlInput = document.getElementById('gas-url-input');
 
-// --- Tab Switching Logic ---
-tabs.forEach(tab => {
-    tab.addEventListener('click', () => {
-        // Remove active class from all tabs and contents
-        tabs.forEach(t => t.classList.remove('active'));
-        tabContents.forEach(c => c.classList.remove('active'));
+// State
+let currentFile = null;
+let base64Data = null;
 
-        // Add active class to clicked tab and corresponding content
-        tab.classList.add('active');
-        const targetId = tab.getAttribute('data-tab');
-        document.getElementById(targetId).classList.add('active');
-    });
+// --- GAS URL persistence ---
+if (localStorage.getItem('gasUrl')) {
+    gasUrlInput.value = localStorage.getItem('gasUrl');
+}
+gasUrlInput.addEventListener('change', (e) => {
+    localStorage.setItem('gasUrl', e.target.value.trim());
 });
 
-// --- Base Image Handling Class ---
-class ImageHandler {
-    constructor(type) {
-        this.type = type; // 'notebook' or 'questionnaire'
-        this.dropZone = document.getElementById(`drop-zone-${type}`);
-        this.fileInput = document.getElementById(`file-input-${type}`);
-        this.previewContainer = document.getElementById(`preview-container-${type}`);
-        this.imagePreview = document.getElementById(`image-preview-${type}`);
-        this.removeBtn = document.getElementById(`remove-btn-${type}`);
-        this.analyzeBtn = document.getElementById(`analyze-btn-${type}`);
-        
-        this.currentFile = null;
-        this.base64Data = null;
+// --- Image Handling (single shared handler) ---
+dropZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropZone.classList.add('dragover');
+});
 
-        this.initEventListeners();
+dropZone.addEventListener('dragleave', () => {
+    dropZone.classList.remove('dragover');
+});
+
+dropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropZone.classList.remove('dragover');
+    if (e.dataTransfer.files.length > 0) {
+        handleFile(e.dataTransfer.files[0]);
     }
+});
 
-    initEventListeners() {
-        // Drag and drop events
-        this.dropZone.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            this.dropZone.classList.add('dragover');
-        });
-
-        this.dropZone.addEventListener('dragleave', () => {
-            this.dropZone.classList.remove('dragover');
-        });
-
-        this.dropZone.addEventListener('drop', (e) => {
-            e.preventDefault();
-            this.dropZone.classList.remove('dragover');
-            if (e.dataTransfer.files.length > 0) {
-                this.handleFile(e.dataTransfer.files[0]);
-            }
-        });
-
-        // File input change
-        this.fileInput.addEventListener('change', (e) => {
-            if (e.target.files.length > 0) {
-                this.handleFile(e.target.files[0]);
-            }
-        });
-
-        // Remove image
-        this.removeBtn.addEventListener('click', (e) => {
-            e.stopPropagation(); // Prevent triggering file input click
-            this.clearImage();
-        });
+fileInput.addEventListener('change', (e) => {
+    if (e.target.files.length > 0) {
+        handleFile(e.target.files[0]);
     }
+});
 
-    handleFile(file) {
-        // Check if file is an image
-        if (!file.type.match('image.*')) {
-            showToast('画像ファイル(JPEG/PNG)を選択してください');
-            return;
-        }
+removeBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    clearImage();
+});
 
-        this.currentFile = file;
-        this.analyzeBtn.disabled = false;
+function handleFile(file) {
+    if (!file.type.match('image.*')) {
+        showToast('画像ファイル(JPEG/PNG)を選択してください');
+        return;
+    }
+    currentFile = file;
+    analyzeBtnNotebook.disabled = false;
+    analyzeBtnQuestionnaire.disabled = false;
 
-        // Preview and Convert to Base64
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            this.imagePreview.src = e.target.result;
-            this.previewContainer.style.display = 'flex';
-            
-            // Extract base64 without the data URL prefix
-            this.base64Data = e.target.result.split(',')[1];
-        };
-        reader.readAsDataURL(file);
-    }
-
-    clearImage() {
-        this.currentFile = null;
-        this.base64Data = null;
-        this.fileInput.value = '';
-        this.previewContainer.style.display = 'none';
-        this.imagePreview.src = '';
-        this.analyzeBtn.disabled = true;
-    }
-    
-    getBase64() {
-        return this.base64Data;
-    }
-    
-    getMimeType() {
-        return this.currentFile ? this.currentFile.type : null;
-    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        imagePreview.src = e.target.result;
+        previewContainer.style.display = 'flex';
+        base64Data = e.target.result.split(',')[1];
+    };
+    reader.readAsDataURL(file);
 }
 
-// --- Initialize Handlers ---
-const notebookHandler = new ImageHandler('notebook');
-const questionnaireHandler = new ImageHandler('questionnaire');
+function clearImage() {
+    currentFile = null;
+    base64Data = null;
+    fileInput.value = '';
+    previewContainer.style.display = 'none';
+    imagePreview.src = '';
+    analyzeBtnNotebook.disabled = true;
+    analyzeBtnQuestionnaire.disabled = true;
+}
 
-// --- Notebook Specific Logic ---
+function getBase64() { return base64Data; }
+function getMimeType() { return currentFile ? currentFile.type : null; }
+
+// --- Notebook Analysis ---
+const resultNotebook = document.getElementById('result-notebook');
 const resultTextNotebook = document.getElementById('result-text-notebook');
 const copyBtnNotebook = document.getElementById('copy-btn-notebook');
 const clearBtnNotebook = document.getElementById('clear-btn-notebook');
-const loadingOverlayNotebook = document.getElementById('loading-overlay-notebook');
 
-notebookHandler.analyzeBtn.addEventListener('click', async () => {
-    if (!notebookHandler.getBase64()) return;
+analyzeBtnNotebook.addEventListener('click', async () => {
+    if (!getBase64()) return;
 
     // Show loading
-    loadingOverlayNotebook.style.display = 'flex';
-    notebookHandler.analyzeBtn.disabled = true;
-    resultTextNotebook.value = '';
-    copyBtnNotebook.disabled = true;
-    clearBtnNotebook.disabled = true;
+    loadingText.textContent = 'AIがお薬手帳を解析中...';
+    loadingOverlay.style.display = 'flex';
+    analyzeBtnNotebook.disabled = true;
+    analyzeBtnQuestionnaire.disabled = true;
+
+    // Hide previous results
+    resultNotebook.style.display = 'none';
+    hideQuestionnaireResult();
 
     try {
-        // TODO: Replace with actual GAS API Call
-        const gasUrl = document.getElementById('gas-url-input')?.value || localStorage.getItem('gasUrl');
-        
-        // Mock API Call Delay for demonstration
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        
+        const gasUrl = gasUrlInput.value.trim() || localStorage.getItem('gasUrl');
+
         let extractedText = "";
 
-        if(gasUrl) {
-            // Actual API Call (Commented out until backend is ready)
-             const payload = {
-                 type: "notebook",
-                 image: notebookHandler.getBase64(),
-                 mimeType: notebookHandler.getMimeType()
-             };
-             
-             const response = await fetch(gasUrl, {
-                 method: 'POST',
-                 body: JSON.stringify(payload),
-                 // muteHttpExceptions: true equivalent handling in frontend? (handled by standard fetch)
-             });
-             
-             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-             const result = await response.json();
-             
-             if(result.status === "success" && result.data) {
-                 extractedText = result.data;
-             } else {
-                 throw new Error(result.message || "Unknown API Error");
-             }
-        } else {
-            // Mock Result
-            extractedText = `ロキソプロフェンナトリウム錠60mg「EMEC」\nレバミピド錠100mg「オーハラ」\nセフジニルカプセル100mg「サワイ」`;
-            if(gasUrl === "") {
-                console.warn("GAS URL not set, using mock data for Notebook.");
+        if (gasUrl) {
+            const payload = {
+                type: "notebook",
+                image: getBase64(),
+                mimeType: getMimeType()
+            };
+
+            const response = await fetch(gasUrl, {
+                method: 'POST',
+                body: JSON.stringify(payload),
+            });
+
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            const result = await response.json();
+
+            if (result.status === "success" && result.data) {
+                extractedText = result.data;
+            } else {
+                throw new Error(result.message || "Unknown API Error");
             }
+        } else {
+            extractedText = `ロキソプロフェンナトリウム錠60mg「EMEC」\nレバミピド錠100mg「オーハラ」\nセフジニルカプセル100mg「サワイ」`;
+            console.warn("GAS URL not set, using mock data for Notebook.");
         }
 
         resultTextNotebook.value = extractedText;
-        copyBtnNotebook.disabled = false;
-        clearBtnNotebook.disabled = false;
+        resultNotebook.style.display = 'flex';
 
     } catch (error) {
         console.error("Error analyzing notebook:", error);
         resultTextNotebook.value = `エラーが発生しました。\n詳細: ${error.message}\n\n※GASバックエンドのURLが正しく設定されているか確認してください。`;
+        resultNotebook.style.display = 'flex';
     } finally {
-        loadingOverlayNotebook.style.display = 'none';
-        notebookHandler.analyzeBtn.disabled = false;
+        loadingOverlay.style.display = 'none';
+        if (currentFile) {
+            analyzeBtnNotebook.disabled = false;
+            analyzeBtnQuestionnaire.disabled = false;
+        }
     }
 });
 
@@ -192,55 +161,116 @@ copyBtnNotebook.addEventListener('click', () => {
 
 clearBtnNotebook.addEventListener('click', () => {
     resultTextNotebook.value = '';
-    copyBtnNotebook.disabled = true;
-    clearBtnNotebook.disabled = true;
-    notebookHandler.clearImage();
+    resultNotebook.style.display = 'none';
+    clearImage();
 });
 
 
-// --- Questionnaire Specific Logic ---
-const loadingOverlayQuestionnaire = document.getElementById('loading-overlay-questionnaire');
+// --- Questionnaire Analysis ---
+const resultQuestionnaire = document.getElementById('result-questionnaire');
 const statusPanel = document.getElementById('status-panel-questionnaire');
-const gasUrlInput = document.getElementById('gas-url-input');
+let lastQuestionnaireData = null; // Store for formatting
 
-// Load GAS URL from local storage
-if (localStorage.getItem('gasUrl')) {
-    gasUrlInput.value = localStorage.getItem('gasUrl');
+function hideQuestionnaireResult() {
+    resultQuestionnaire.style.display = 'none';
+    document.getElementById('success-message-questionnaire').style.display = 'none';
+    document.getElementById('error-message-questionnaire').style.display = 'none';
 }
 
-// Save GAS URL to local storage on change
-gasUrlInput.addEventListener('change', (e) => {
-    localStorage.setItem('gasUrl', e.target.value.trim());
-});
+/**
+ * 問診票データを「初回問診引用」フォーマットに整形する
+ */
+function formatQuestionnaireForClipboard(d) {
+    // 患者状態: 該当なし/なし → "null" 表記
+    const rawCondition = d['患者状態'] || 'なし';
+    const isNoCondition = (rawCondition === 'なし' || rawCondition === '該当なし');
+    const conditionDisplay = isNoCondition ? 'なし' : rawCondition;
 
-function setQuestionnaireStatus(status, data = null, errorMessage = null) {
-    // Hide all statuses
-    const views = statusPanel.children;
-    for(let i=0; i<views.length; i++) {
-        views[i].style.display = 'none';
-    }
-
-    if (status === 'idle') {
-        statusPanel.querySelector('.status-idle').style.display = 'flex';
-    } else if (status === 'loading') {
-        loadingOverlayQuestionnaire.style.display = 'flex';
-    } else if (status === 'success') {
-        const successMsg = document.getElementById('success-message-questionnaire');
-        successMsg.style.display = 'flex';
-        // Format JSON payload for preview
-        if(data) {
-             document.getElementById('json-preview-questionnaire').textContent = JSON.stringify(data, null, 2);
+    // 手帳活用: お薬手帳 + 手帳タイプ を結合
+    let bookletDisplay = d['お薬手帳'] || 'なし';
+    if (bookletDisplay === 'あり') {
+        const bookletType = d['手帳タイプ'];
+        if (bookletType && bookletType !== 'なし') {
+            bookletDisplay = `あり(${bookletType})`;
         }
-    } else if (status === 'error') {
-        const errorMsg = document.getElementById('error-message-questionnaire');
-        errorMsg.style.display = 'flex';
-        document.getElementById('error-text-questionnaire').textContent = errorMessage || "不明なエラーが発生しました。";
     }
+
+    // 既往歴 + 詳細
+    let historyDisplay = d['既往歴'] || 'なし';
+    const historyDetail = d['既往歴詳細'];
+    if (historyDetail && historyDetail !== 'なし' && historyDetail !== '') {
+        historyDisplay += `, ${historyDetail}`;
+    }
+
+    // 花粉症・アレルゲン（環境アレルギー + 花粉症タイプ）
+    let envAllergyDisplay = d['環境アレルギー'] || 'なし';
+
+    // 副作用歴・薬アレルギー
+    const drugAllergy = d['薬アレルギー'] || 'なし';
+    const drugAllergyDetail = d['薬アレルギー詳細'];
+    let drugAllergyDisplay = `薬・副作用等:${drugAllergy}`;
+    if (drugAllergy === 'あり' && drugAllergyDetail && drugAllergyDetail !== 'なし' && drugAllergyDetail !== '') {
+        drugAllergyDisplay = `薬・副作用等:${drugAllergyDetail}`;
+    }
+
+    // 食品アレルギー
+    const foodAllergy = d['食品アレルギー'] || 'なし';
+    const foodAllergyDetail = d['食品アレルギー詳細'];
+    let foodAllergyDisplay = foodAllergy;
+    if (foodAllergy === 'あり' && foodAllergyDetail && foodAllergyDetail !== 'なし' && foodAllergyDetail !== '') {
+        foodAllergyDisplay = `あり (${foodAllergyDetail})`;
+    }
+
+    // 定期服用薬・サプリ・OTC
+    const currentPresc = d['他院処方'] || 'なし';
+    const currentPrescDetail = d['他院処方詳細'];
+    let prescPart = `他院処方:${currentPresc}`;
+    if (currentPresc === 'あり' && currentPrescDetail && currentPrescDetail !== 'なし' && currentPrescDetail !== '') {
+        prescPart = `他院処方:${currentPrescDetail}`;
+    }
+
+    const otcList = d['市販薬・サプリメント'] || 'なし';
+    const otcDetail = d['市販薬詳細'];
+    let otcPart = `市販薬･サプリ:${otcList}`;
+    if (otcList !== 'なし' && otcDetail && otcDetail !== 'なし' && otcDetail !== '') {
+        otcPart = `市販薬･サプリ:${otcList} (${otcDetail})`;
+    }
+
+    // 飲食物
+    const alcohol = d['飲酒'] || 'なし';
+    const foodDrink = d['飲食物'] || 'なし';
+    const foodDrinkDetail = d['飲食物詳細'];
+    let foodDrinkPart = foodDrink;
+    if (foodDrinkDetail && foodDrinkDetail !== 'なし' && foodDrinkDetail !== '') {
+        foodDrinkPart += `, ${foodDrinkDetail}`;
+    }
+
+    // 生活像
+    const driving = d['運転'] || 'なし';
+    const heightWork = d['高所作業'] || 'なし';
+    const smoking = d['喫煙'] || 'なし';
+
+    const lines = [
+        `【初回問診引用】`,
+        `■電話番号: ${d['電話番号'] || 'なし'}`,
+        `■患者様の状態: ${conditionDisplay}`,
+        `■後発品変更希望: ${d['ジェネリック希望'] || 'なし'}`,
+        `■手帳活用の有無: ${bookletDisplay}`,
+        `■既往歴: ${historyDisplay}`,
+        `■花粉症・アレルゲンについて: ${envAllergyDisplay}`,
+        `■副作用歴、薬物アレルギー: ${drugAllergyDisplay}`,
+        `■食物等アレルギー: ${foodAllergyDisplay}`,
+        `■定期的服用薬・サプリメント・OTC: ${prescPart} / ${otcPart}`,
+        `■飲食物の摂取状況等: 酒:${alcohol} / 飲食物:${foodDrinkPart}`,
+        `■薬学的管理に必要な患者の生活像: 妊娠・授乳・小児:${conditionDisplay} / 運転:${driving} / 高所作業:${heightWork} / コンタクト:なし / 喫煙:${smoking}`
+    ];
+
+    return lines.join('\n');
 }
 
-questionnaireHandler.analyzeBtn.addEventListener('click', async () => {
-    if (!questionnaireHandler.getBase64()) return;
-    
+analyzeBtnQuestionnaire.addEventListener('click', async () => {
+    if (!getBase64()) return;
+
     const gasUrl = gasUrlInput.value.trim();
     if (!gasUrl) {
         showToast('GASのWebアプリURLを入力してください');
@@ -248,39 +278,81 @@ questionnaireHandler.analyzeBtn.addEventListener('click', async () => {
         return;
     }
 
-    setQuestionnaireStatus('loading');
-    questionnaireHandler.analyzeBtn.disabled = true;
+    // Show loading
+    loadingText.textContent = 'AIが問診票を解析・送信中...';
+    loadingOverlay.style.display = 'flex';
+    analyzeBtnNotebook.disabled = true;
+    analyzeBtnQuestionnaire.disabled = true;
+
+    // Hide previous results
+    resultNotebook.style.display = 'none';
+    hideQuestionnaireResult();
 
     try {
         const payload = {
             type: "questionnaire",
-            image: questionnaireHandler.getBase64(),
-            mimeType: questionnaireHandler.getMimeType()
+            image: getBase64(),
+            mimeType: getMimeType()
         };
 
         const response = await fetch(gasUrl, {
             method: 'POST',
             body: JSON.stringify(payload),
-            // headers: { 'Content-Type': 'text/plain;charset=utf-8' } // GAS sometimes requires plain text to avoid CORS preflight, handled by stringify
         });
 
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        
         const result = await response.json();
 
         if (result.status === "success") {
-            setQuestionnaireStatus('success', result.data);
+            lastQuestionnaireData = result.data;
+            resultQuestionnaire.style.display = 'flex';
+            const successMsg = document.getElementById('success-message-questionnaire');
+            successMsg.style.display = 'flex';
+            if (result.data) {
+                // 「初回問診引用」フォーマットで表示
+                const formattedText = formatQuestionnaireForClipboard(result.data);
+                document.getElementById('json-preview-questionnaire').textContent = formattedText;
+            }
         } else {
-             throw new Error(result.message || "スプレッドシートへの保存に失敗しました。");
+            throw new Error(result.message || "スプレッドシートへの保存に失敗しました。");
         }
 
     } catch (error) {
         console.error("Error processing questionnaire:", error);
-        setQuestionnaireStatus('error', null, error.message);
+        resultQuestionnaire.style.display = 'flex';
+        const errorMsg = document.getElementById('error-message-questionnaire');
+        errorMsg.style.display = 'flex';
+        document.getElementById('error-text-questionnaire').textContent = error.message;
     } finally {
-        questionnaireHandler.analyzeBtn.disabled = false;
-        // Optionally clear image after successful submission, but keeping it might be useful for verification
+        loadingOverlay.style.display = 'none';
+        if (currentFile) {
+            analyzeBtnNotebook.disabled = false;
+            analyzeBtnQuestionnaire.disabled = false;
+        }
     }
+});
+
+// Questionnaire Copy button - 「初回問診引用」フォーマットでコピー
+const copyBtnQuestionnaire = document.getElementById('copy-btn-questionnaire');
+const clearBtnQuestionnaire = document.getElementById('clear-btn-questionnaire');
+
+copyBtnQuestionnaire.addEventListener('click', () => {
+    const preview = document.getElementById('json-preview-questionnaire');
+    if (preview.textContent) {
+        navigator.clipboard.writeText(preview.textContent)
+            .then(() => showToast('初回問診引用をクリップボードにコピーしました'))
+            .catch(err => {
+                console.error('Copy failed:', err);
+                showToast('コピーに失敗しました');
+            });
+    }
+});
+
+// Questionnaire Clear button
+clearBtnQuestionnaire.addEventListener('click', () => {
+    lastQuestionnaireData = null;
+    hideQuestionnaireResult();
+    clearImage();
 });
 
 
@@ -288,13 +360,12 @@ questionnaireHandler.analyzeBtn.addEventListener('click', async () => {
 function showToast(message) {
     toast.textContent = message;
     toast.classList.add('show');
-    
     setTimeout(() => {
         toast.classList.remove('show');
     }, 3000);
 }
 
-// OS Theme detection for initial load
+// OS Theme detection
 if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
     document.body.setAttribute('data-theme', 'dark');
 }
