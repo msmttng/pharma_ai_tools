@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pharma AI Tools</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="app-container">
+        <header class="app-header">
+            <div class="logo-container">
+                <i class="fa-solid fa-notes-medical logo-icon"></i>
+                <h1 class="app-title">Pharma AI Tools</h1>
+            </div>
+            <p class="app-subtitle">薬局業務効率化アシスタント</p>
+        </header>
+
+        <main class="app-main">
+            <!-- Tabs -->
+            <div class="tabs">
+                <button class="tab-btn active" data-tab="notebook-reader">
+                    <i class="fa-solid fa-book-medical"></i> お薬手帳リーダー
+                </button>
+                <button class="tab-btn" data-tab="questionnaire-digitizer">
+                    <i class="fa-solid fa-clipboard-user"></i> 問診票デジタライザー
+                </button>
+            </div>
+
+            <!-- Tab Content: Medication Notebook Reader -->
+            <section id="notebook-reader" class="tab-content active">
+                <div class="content-header">
+                    <h2>お薬手帳から医薬品名を抽出</h2>
+                    <p>画像から医薬品名のみを読み取り、コピーしやすい形式に変換します。</p>
+                </div>
+                
+                <div class="workspace">
+                    <div class="upload-section">
+                        <div class="drop-zone" id="drop-zone-notebook">
+                            <i class="fa-solid fa-cloud-arrow-up upload-icon"></i>
+                            <p class="drop-text">画像ファイル(JPEG, PNG)をここにドロップ<br>または</p>
+                            <input type="file" id="file-input-notebook" accept="image/jpeg, image/png, image/webp" hidden>
+                            <button class="btn btn-secondary" onclick="document.getElementById('file-input-notebook').click()">ファイルを選択</button>
+                            <div id="preview-container-notebook" class="preview-container" style="display: none;">
+                                <img id="image-preview-notebook" src="" alt="プレビュー">
+                                <button class="btn-icon remove-btn" id="remove-btn-notebook" title="画像を削除"><i class="fa-solid fa-xmark"></i></button>
+                            </div>
+                        </div>
+                        <button class="btn btn-primary analyze-btn" id="analyze-btn-notebook" disabled>
+                            <i class="fa-solid fa-wand-magic-sparkles"></i> 医薬品名を抽出する
+                        </button>
+                    </div>
+
+                    <div class="result-section">
+                        <div class="result-header">
+                            <h3>抽出結果</h3>
+                            <div class="result-actions">
+                                <button class="btn btn-outline" id="copy-btn-notebook" disabled>
+                                    <i class="fa-regular fa-copy"></i> コピー
+                                </button>
+                                <button class="btn btn-outline" id="clear-btn-notebook" disabled>
+                                    <i class="fa-solid fa-eraser"></i> クリア
+                                </button>
+                            </div>
+                        </div>
+                        <div class="textarea-container">
+                            <textarea id="result-text-notebook" placeholder="ここに抽出された医薬品名が表示されます..." readonly></textarea>
+                            <div id="loading-overlay-notebook" class="loading-overlay" style="display: none;">
+                                <div class="spinner"></div>
+                                <p>AIが画像を解析中...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Tab Content: Questionnaire Digitizer -->
+            <section id="questionnaire-digitizer" class="tab-content">
+                 <div class="content-header">
+                    <h2>問診票をデータ化して自動送信</h2>
+                    <p>手書きの問診票を読み取り、問診回答管理システム(スプレッドシート等)へ自動登録します。</p>
+                </div>
+
+                <div class="workspace">
+                    <div class="upload-section">
+                        <div class="drop-zone" id="drop-zone-questionnaire">
+                            <i class="fa-solid fa-file-signature upload-icon"></i>
+                            <p class="drop-text">問診票の画像(JPEG, PNG)をここにドロップ<br>または</p>
+                            <input type="file" id="file-input-questionnaire" accept="image/jpeg, image/png, image/webp" hidden>
+                            <button class="btn btn-secondary" onclick="document.getElementById('file-input-questionnaire').click()">ファイルを選択</button>
+                            <div id="preview-container-questionnaire" class="preview-container" style="display: none;">
+                                <img id="image-preview-questionnaire" src="" alt="プレビュー">
+                                <button class="btn-icon remove-btn" id="remove-btn-questionnaire" title="画像を削除"><i class="fa-solid fa-xmark"></i></button>
+                            </div>
+                        </div>
+                        <!-- 今後の拡張で設定項目を増やす余地 -->
+                         <div class="settings-panel">
+                            <label for="gas-url-input" class="settings-label">GAS WebアプリURL (問診システム連携用)</label>
+                            <input type="password" id="gas-url-input" class="settings-input" placeholder="https://script.google.com/macros/s/.../exec">
+                            <small class="settings-hint">※初回のみ入力。ブラウザに保存されます。</small>
+                        </div>
+                        <button class="btn btn-primary analyze-btn" id="analyze-btn-questionnaire" disabled>
+                            <i class="fa-solid fa-paper-plane"></i> 読み取ってシステムへ送信
+                        </button>
+                    </div>
+
+                    <div class="result-section">
+                         <div class="result-header">
+                            <h3>処理ステータス</h3>
+                        </div>
+                        <div class="status-panel" id="status-panel-questionnaire">
+                            <div class="status-idle">
+                                <i class="fa-solid fa-circle-info status-icon"></i>
+                                <p>画像をアップロードして送信ボタンを押してください。</p>
+                            </div>
+                            <div id="loading-overlay-questionnaire" class="loading-overlay" style="display: none;">
+                                <div class="spinner"></div>
+                                <p>AIが手書き文字を解析・送信中...</p>
+                            </div>
+                            <div id="success-message-questionnaire" class="status-message success" style="display: none;">
+                                <i class="fa-solid fa-circle-check"></i>
+                                <p><strong>送信完了</strong><br>問診システムへのデータ登録が成功しました。</p>
+                                <pre id="json-preview-questionnaire" class="json-preview"></pre>
+                            </div>
+                            <div id="error-message-questionnaire" class="status-message error" style="display: none;">
+                                <i class="fa-solid fa-circle-exclamation"></i>
+                                <p><strong>エラーが発生しました</strong><br><span id="error-text-questionnaire"></span></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+        
+        <div id="toast" class="toast">コピーしました</div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
