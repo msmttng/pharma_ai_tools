@@ -1,39 +1,45 @@
 <script>
-// === DOM Elements ===
-const toast = document.getElementById('toast');
-const dropZone = document.getElementById('drop-zone');
-const fileInput = document.getElementById('file-input');
-const previewContainer = document.getElementById('preview-container');
-const imagePreview = document.getElementById('image-preview');
-const removeBtn = document.getElementById('remove-btn');
-const loadingOverlay = document.getElementById('loading-overlay');
-const loadingText = document.getElementById('loading-text');
-const gasUrlInput = document.getElementById('gas-url-input');
-const dropText = document.getElementById('drop-text');
-const modeDescriptionText = document.getElementById('mode-description-text');
+// === DOM ===
+var toast = document.getElementById('toast');
+var dropZone = document.getElementById('drop-zone');
+var fileInput = document.getElementById('file-input');
+var previewContainer = document.getElementById('preview-container');
+var imagePreview = document.getElementById('image-preview');
+var removeBtn = document.getElementById('remove-btn');
+var loadingOverlay = document.getElementById('loading-overlay');
+var loadingText = document.getElementById('loading-text');
+var gasUrlInput = document.getElementById('gas-url-input');
+var dropText = document.getElementById('drop-text');
+var modeCardTitle = document.getElementById('mode-card-title');
+var modeCardDesc = document.getElementById('mode-card-desc');
+var btnUpload = document.getElementById('btn-upload');
 
 // === State ===
-let currentFile = null;
-let base64Data = null;
-let currentMode = 'questionnaire'; // default
+var currentFile = null;
+var base64Data = null;
+var currentMode = 'questionnaire';
 
-// === Mode Descriptions ===
-const modeDescriptions = {
-    questionnaire: '読み取り内容を自動送信します。妊娠・授乳・小児などの項目は自動でスキップ処理されます。',
-    notebook: '画像から医薬品名を抽出し、GASへ自動送信します。'
+// === Mode Config ===
+var modeConfig = {
+    questionnaire: {
+        title: '問診票モード',
+        desc: '読み取り内容を自動送信します。妊娠・授乳・小児などの項目は自動でスキップ処理されます。',
+        dropText: '問診票の画像をドロップ<br>または',
+        loadingText: 'AIが問診票を解析・送信中...',
+        dropClass: 'drop-zone-amber',
+        btnClass: ''
+    },
+    notebook: {
+        title: 'お薬手帳モード',
+        desc: '画像から医薬品名を抽出し、GASへ自動送信します。',
+        dropText: 'お薬手帳の画像をドロップ<br>または',
+        loadingText: 'AIがお薬手帳を解析中...',
+        dropClass: 'drop-zone-green',
+        btnClass: 'btn-upload-green'
+    }
 };
 
-const modeDropTexts = {
-    questionnaire: '問診票の画像をドロップ<br>または',
-    notebook: 'お薬手帳の画像をドロップ<br>または'
-};
-
-const modeLoadingTexts = {
-    questionnaire: 'AIが問診票を解析・送信中...',
-    notebook: 'AIがお薬手帳を解析中...'
-};
-
-// === GAS URL persistence ===
+// === GAS URL ===
 if (localStorage.getItem('gasUrl')) {
     gasUrlInput.value = localStorage.getItem('gasUrl');
 }
@@ -43,16 +49,34 @@ gasUrlInput.addEventListener('change', function(e) {
 
 // === Tab Switching ===
 var tabs = document.querySelectorAll('.mode-tab');
+
+function switchMode(mode) {
+    currentMode = mode;
+    var cfg = modeConfig[mode];
+
+    // Tab active state
+    tabs.forEach(function(t) { t.classList.remove('active'); });
+    document.getElementById('tab-' + mode).classList.add('active');
+
+    // Mode card
+    modeCardTitle.textContent = cfg.title;
+    modeCardDesc.textContent = cfg.desc;
+
+    // Drop zone color
+    dropZone.className = 'drop-zone ' + cfg.dropClass;
+    dropText.innerHTML = cfg.dropText;
+
+    // Upload button color
+    btnUpload.className = 'btn btn-upload ' + cfg.btnClass;
+
+    // Hide results
+    document.getElementById('result-notebook').style.display = 'none';
+    hideQuestionnaireResult();
+}
+
 tabs.forEach(function(tab) {
     tab.addEventListener('click', function() {
-        tabs.forEach(function(t) { t.classList.remove('active'); });
-        tab.classList.add('active');
-        currentMode = tab.getAttribute('data-mode');
-        modeDescriptionText.textContent = modeDescriptions[currentMode];
-        dropText.innerHTML = modeDropTexts[currentMode];
-        // Hide previous results
-        document.getElementById('result-notebook').style.display = 'none';
-        hideQuestionnaireResult();
+        switchMode(tab.getAttribute('data-mode'));
     });
 });
 
@@ -97,7 +121,6 @@ function handleFile(file) {
         imagePreview.src = e.target.result;
         previewContainer.style.display = 'flex';
         base64Data = e.target.result.split(',')[1];
-        // 自動解析開始
         autoAnalyze();
     };
     reader.readAsDataURL(file);
@@ -114,7 +137,7 @@ function clearImage() {
 function getBase64() { return base64Data; }
 function getMimeType() { return currentFile ? currentFile.type : null; }
 
-// === Auto Analyze (upload triggers analysis) ===
+// === Auto Analyze ===
 function autoAnalyze() {
     if (currentMode === 'notebook') {
         analyzeNotebook();
@@ -123,7 +146,7 @@ function autoAnalyze() {
     }
 }
 
-// === Notebook Analysis ===
+// === Notebook ===
 var resultNotebook = document.getElementById('result-notebook');
 var resultTextNotebook = document.getElementById('result-text-notebook');
 var copyBtnNotebook = document.getElementById('copy-btn-notebook');
@@ -132,7 +155,7 @@ var clearBtnNotebook = document.getElementById('clear-btn-notebook');
 async function analyzeNotebook() {
     if (!getBase64()) return;
 
-    loadingText.textContent = modeLoadingTexts.notebook;
+    loadingText.textContent = modeConfig.notebook.loadingText;
     loadingOverlay.style.display = 'flex';
     resultNotebook.style.display = 'none';
     hideQuestionnaireResult();
@@ -142,20 +165,10 @@ async function analyzeNotebook() {
         var extractedText = '';
 
         if (gasUrl) {
-            var payload = {
-                type: 'notebook',
-                image: getBase64(),
-                mimeType: getMimeType()
-            };
-
-            var response = await fetch(gasUrl, {
-                method: 'POST',
-                body: JSON.stringify(payload)
-            });
-
+            var payload = { type: 'notebook', image: getBase64(), mimeType: getMimeType() };
+            var response = await fetch(gasUrl, { method: 'POST', body: JSON.stringify(payload) });
             if (!response.ok) throw new Error('HTTP error! status: ' + response.status);
             var result = await response.json();
-
             if (result.status === 'success' && result.data) {
                 extractedText = result.data;
             } else {
@@ -163,15 +176,12 @@ async function analyzeNotebook() {
             }
         } else {
             extractedText = "ロキソプロフェンナトリウム錠60mg「EMEC」\nレバミピド錠100mg「オーハラ」\nセフジニルカプセル100mg「サワイ」";
-            console.warn('GAS URL not set, using mock data.');
         }
 
         resultTextNotebook.value = extractedText;
         resultNotebook.style.display = 'flex';
-
     } catch (error) {
-        console.error('Error analyzing notebook:', error);
-        resultTextNotebook.value = 'エラーが発生しました。\n詳細: ' + error.message + '\n\n※GASバックエンドのURLが正しく設定されているか確認してください。';
+        resultTextNotebook.value = 'エラーが発生しました。\n詳細: ' + error.message;
         resultNotebook.style.display = 'flex';
     } finally {
         loadingOverlay.style.display = 'none';
@@ -182,10 +192,7 @@ copyBtnNotebook.addEventListener('click', function() {
     if (resultTextNotebook.value) {
         navigator.clipboard.writeText(resultTextNotebook.value)
             .then(function() { showToast('クリップボードにコピーしました'); })
-            .catch(function(err) {
-                console.error('Copy failed:', err);
-                showToast('コピーに失敗しました');
-            });
+            .catch(function() { showToast('コピーに失敗しました'); });
     }
 });
 
@@ -195,8 +202,7 @@ clearBtnNotebook.addEventListener('click', function() {
     clearImage();
 });
 
-
-// === Questionnaire Analysis ===
+// === Questionnaire ===
 var resultQuestionnaire = document.getElementById('result-questionnaire');
 var lastQuestionnaireData = null;
 
@@ -208,81 +214,65 @@ function hideQuestionnaireResult() {
 
 function formatQuestionnaireForClipboard(d) {
     var rawCondition = d['患者状態'] || 'なし';
-    var isNoCondition = (rawCondition === 'なし' || rawCondition === '該当なし');
-    var conditionDisplay = isNoCondition ? 'なし' : rawCondition;
+    var isNo = (rawCondition === 'なし' || rawCondition === '該当なし');
+    var cond = isNo ? 'なし' : rawCondition;
 
-    var bookletDisplay = d['お薬手帳'] || 'なし';
-    if (bookletDisplay === 'あり') {
-        var bookletType = d['手帳タイプ'];
-        if (bookletType && bookletType !== 'なし') {
-            bookletDisplay = 'あり(' + bookletType + ')';
-        }
+    var booklet = d['お薬手帳'] || 'なし';
+    if (booklet === 'あり') {
+        var bt = d['手帳タイプ'];
+        if (bt && bt !== 'なし') booklet = 'あり(' + bt + ')';
     }
 
-    var historyDisplay = d['既往歴'] || 'なし';
-    var historyDetail = d['既往歴詳細'];
-    if (historyDetail && historyDetail !== 'なし' && historyDetail !== '') {
-        historyDisplay += ', ' + historyDetail;
-    }
+    var hist = d['既往歴'] || 'なし';
+    var hd = d['既往歴詳細'];
+    if (hd && hd !== 'なし' && hd !== '') hist += ', ' + hd;
 
-    var envAllergyDisplay = d['環境アレルギー'] || 'なし';
+    var env = d['環境アレルギー'] || 'なし';
 
-    var drugAllergy = d['薬アレルギー'] || 'なし';
-    var drugAllergyDetail = d['薬アレルギー詳細'];
-    var drugAllergyDisplay = '薬・副作用等:' + drugAllergy;
-    if (drugAllergy === 'あり' && drugAllergyDetail && drugAllergyDetail !== 'なし' && drugAllergyDetail !== '') {
-        drugAllergyDisplay = '薬・副作用等:' + drugAllergyDetail;
-    }
+    var da = d['薬アレルギー'] || 'なし';
+    var dad = d['薬アレルギー詳細'];
+    var daDisp = '薬・副作用等:' + da;
+    if (da === 'あり' && dad && dad !== 'なし' && dad !== '') daDisp = '薬・副作用等:' + dad;
 
-    var foodAllergy = d['食品アレルギー'] || 'なし';
-    var foodAllergyDetail = d['食品アレルギー詳細'];
-    var foodAllergyDisplay = foodAllergy;
-    if (foodAllergy === 'あり' && foodAllergyDetail && foodAllergyDetail !== 'なし' && foodAllergyDetail !== '') {
-        foodAllergyDisplay = 'あり (' + foodAllergyDetail + ')';
-    }
+    var fa = d['食品アレルギー'] || 'なし';
+    var fad = d['食品アレルギー詳細'];
+    var faDisp = fa;
+    if (fa === 'あり' && fad && fad !== 'なし' && fad !== '') faDisp = 'あり (' + fad + ')';
 
-    var currentPresc = d['他院処方'] || 'なし';
-    var currentPrescDetail = d['他院処方詳細'];
-    var prescPart = '他院処方:' + currentPresc;
-    if (currentPresc === 'あり' && currentPrescDetail && currentPrescDetail !== 'なし' && currentPrescDetail !== '') {
-        prescPart = '他院処方:' + currentPrescDetail;
-    }
+    var cp = d['他院処方'] || 'なし';
+    var cpd = d['他院処方詳細'];
+    var cpPart = '他院処方:' + cp;
+    if (cp === 'あり' && cpd && cpd !== 'なし' && cpd !== '') cpPart = '他院処方:' + cpd;
 
-    var otcList = d['市販薬・サプリメント'] || 'なし';
-    var otcDetail = d['市販薬詳細'];
-    var otcPart = '市販薬･サプリ:' + otcList;
-    if (otcList !== 'なし' && otcDetail && otcDetail !== 'なし' && otcDetail !== '') {
-        otcPart = '市販薬･サプリ:' + otcList + ' (' + otcDetail + ')';
-    }
+    var otc = d['市販薬・サプリメント'] || 'なし';
+    var otcd = d['市販薬詳細'];
+    var otcPart = '市販薬･サプリ:' + otc;
+    if (otc !== 'なし' && otcd && otcd !== 'なし' && otcd !== '') otcPart = '市販薬･サプリ:' + otc + ' (' + otcd + ')';
 
-    var alcohol = d['飲酒'] || 'なし';
-    var foodDrink = d['飲食物'] || 'なし';
-    var foodDrinkDetail = d['飲食物詳細'];
-    var foodDrinkPart = foodDrink;
-    if (foodDrinkDetail && foodDrinkDetail !== 'なし' && foodDrinkDetail !== '') {
-        foodDrinkPart += ', ' + foodDrinkDetail;
-    }
+    var alc = d['飲酒'] || 'なし';
+    var fd = d['飲食物'] || 'なし';
+    var fdd = d['飲食物詳細'];
+    var fdPart = fd;
+    if (fdd && fdd !== 'なし' && fdd !== '') fdPart += ', ' + fdd;
 
-    var driving = d['運転'] || 'なし';
-    var heightWork = d['高所作業'] || 'なし';
-    var smoking = d['喫煙'] || 'なし';
+    var dr = d['運転'] || 'なし';
+    var hw = d['高所作業'] || 'なし';
+    var sm = d['喫煙'] || 'なし';
 
-    var lines = [
+    return [
         '【初回問診引用】',
         '■電話番号: ' + (d['電話番号'] || 'なし'),
-        '■患者様の状態: ' + conditionDisplay,
+        '■患者様の状態: ' + cond,
         '■後発品変更希望: ' + (d['ジェネリック希望'] || 'なし'),
-        '■手帳活用の有無: ' + bookletDisplay,
-        '■既往歴: ' + historyDisplay,
-        '■花粉症・アレルゲンについて: ' + envAllergyDisplay,
-        '■副作用歴、薬物アレルギー: ' + drugAllergyDisplay,
-        '■食物等アレルギー: ' + foodAllergyDisplay,
-        '■定期的服用薬・サプリメント・OTC: ' + prescPart + ' / ' + otcPart,
-        '■飲食物の摂取状況等: 酒:' + alcohol + ' / 飲食物:' + foodDrinkPart,
-        '■薬学的管理に必要な患者の生活像: 妊娠・授乳・小児:' + conditionDisplay + ' / 運転:' + driving + ' / 高所作業:' + heightWork + ' / コンタクト:なし / 喫煙:' + smoking
-    ];
-
-    return lines.join('\n');
+        '■手帳活用の有無: ' + booklet,
+        '■既往歴: ' + hist,
+        '■花粉症・アレルゲンについて: ' + env,
+        '■副作用歴、薬物アレルギー: ' + daDisp,
+        '■食物等アレルギー: ' + faDisp,
+        '■定期的服用薬・サプリメント・OTC: ' + cpPart + ' / ' + otcPart,
+        '■飲食物の摂取状況等: 酒:' + alc + ' / 飲食物:' + fdPart,
+        '■薬学的管理に必要な患者の生活像: 妊娠・授乳・小児:' + cond + ' / 運転:' + dr + ' / 高所作業:' + hw + ' / コンタクト:なし / 喫煙:' + sm
+    ].join('\n');
 }
 
 async function analyzeQuestionnaire() {
@@ -295,67 +285,49 @@ async function analyzeQuestionnaire() {
         return;
     }
 
-    loadingText.textContent = modeLoadingTexts.questionnaire;
+    loadingText.textContent = modeConfig.questionnaire.loadingText;
     loadingOverlay.style.display = 'flex';
     resultNotebook.style.display = 'none';
     hideQuestionnaireResult();
 
     try {
-        var payload = {
-            type: 'questionnaire',
-            image: getBase64(),
-            mimeType: getMimeType()
-        };
-
-        var response = await fetch(gasUrl, {
-            method: 'POST',
-            body: JSON.stringify(payload)
-        });
-
+        var payload = { type: 'questionnaire', image: getBase64(), mimeType: getMimeType() };
+        var response = await fetch(gasUrl, { method: 'POST', body: JSON.stringify(payload) });
         if (!response.ok) throw new Error('HTTP error! status: ' + response.status);
         var result = await response.json();
 
         if (result.status === 'success') {
             lastQuestionnaireData = result.data;
             resultQuestionnaire.style.display = 'flex';
-            var successMsg = document.getElementById('success-message-questionnaire');
-            successMsg.style.display = 'flex';
+            document.getElementById('success-message-questionnaire').style.display = 'flex';
             if (result.data) {
-                var formattedText = formatQuestionnaireForClipboard(result.data);
-                document.getElementById('json-preview-questionnaire').textContent = formattedText;
+                document.getElementById('json-preview-questionnaire').textContent = formatQuestionnaireForClipboard(result.data);
             }
         } else {
             throw new Error(result.message || 'スプレッドシートへの保存に失敗しました。');
         }
-
     } catch (error) {
-        console.error('Error processing questionnaire:', error);
         resultQuestionnaire.style.display = 'flex';
-        var errorMsg = document.getElementById('error-message-questionnaire');
-        errorMsg.style.display = 'flex';
+        document.getElementById('error-message-questionnaire').style.display = 'flex';
         document.getElementById('error-text-questionnaire').textContent = error.message;
     } finally {
         loadingOverlay.style.display = 'none';
     }
 }
 
-// Questionnaire Copy
-var copyBtnQuestionnaire = document.getElementById('copy-btn-questionnaire');
-var clearBtnQuestionnaire = document.getElementById('clear-btn-questionnaire');
+var copyBtnQ = document.getElementById('copy-btn-questionnaire');
+var clearBtnQ = document.getElementById('clear-btn-questionnaire');
 
-copyBtnQuestionnaire.addEventListener('click', function() {
+copyBtnQ.addEventListener('click', function() {
     var preview = document.getElementById('json-preview-questionnaire');
     if (preview.textContent) {
         navigator.clipboard.writeText(preview.textContent)
             .then(function() { showToast('初回問診引用をクリップボードにコピーしました'); })
-            .catch(function(err) {
-                console.error('Copy failed:', err);
-                showToast('コピーに失敗しました');
-            });
+            .catch(function() { showToast('コピーに失敗しました'); });
     }
 });
 
-clearBtnQuestionnaire.addEventListener('click', function() {
+clearBtnQ.addEventListener('click', function() {
     lastQuestionnaireData = null;
     hideQuestionnaireResult();
     clearImage();
@@ -365,8 +337,6 @@ clearBtnQuestionnaire.addEventListener('click', function() {
 function showToast(message) {
     toast.textContent = message;
     toast.classList.add('show');
-    setTimeout(function() {
-        toast.classList.remove('show');
-    }, 3000);
+    setTimeout(function() { toast.classList.remove('show'); }, 3000);
 }
 </script>
