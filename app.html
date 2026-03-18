@@ -23,7 +23,7 @@ var currentMode = 'questionnaire';
 var modeConfig = {
     questionnaire: {
         title: '問診票モード',
-        desc: '読み取り内容を自動送信します。妊娠・授乳・小児などの項目は自動でスキップ処理されます。',
+        desc: '読み取り内容を抽出します',
         dropText: '問診票の画像をドロップ<br>または',
         loadingText: 'AIが問診票を解析・送信中...',
         dropClass: 'drop-zone-amber',
@@ -31,7 +31,7 @@ var modeConfig = {
     },
     notebook: {
         title: 'お薬手帳モード',
-        desc: '画像から医薬品名を抽出し、GASへ自動送信します。',
+        desc: '画像から医薬品名のみを抽出します',
         dropText: 'お薬手帳の画像をドロップ<br>または',
         loadingText: 'AIがお薬手帳を解析中...',
         dropClass: 'drop-zone-green',
