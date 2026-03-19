@@ -148,7 +148,7 @@ function saveToSpreadsheet(data) {
   const tMap = {
     'yes': 'あり', 'no': 'なし',
     'prefer': 'ジェネリック希望', 'avoid': '先発希望', 'ag': '先発（AGなら希望）',
-    'none': 'なし/飲まない', 'occasionally': '時々', 'daily': '毎日',
+    'none': 'なし', 'occasionally': '時々', 'daily': '毎日',
     'cold': '風邪薬', 'pain': '痛み止め', 'rhinitis': '鼻炎薬', 'stomach': '胃腸薬',
     'constipation': '便秘薬', 'kanpo': '漢方薬', 'eye': '目薬', 'vitamin': 'ビタミン',
     'mineral': 'ミネラル', 'multi-mineral': 'マルチミネラル', 'iron': '鉄', 'zinc': '亜鉛', 
@@ -219,7 +219,7 @@ function saveToSpreadsheet(data) {
     translate(data.driving), 
     translate(data['height-work']), 
     'なし', // ソフトコンタクト (紙問診に項目なし)
-    translate(data.alcohol || 'none'), 
+    (() => { const a = data.alcohol || 'none'; const alcoholMap = {'none':'飲まない','occasionally':'時々','daily':'毎日'}; return alcoholMap[a] || translate(a); })(), 
     translate(data.smoking), 
     translate(data.generic), 
     data.memo || '',
@@ -297,10 +297,16 @@ function translateDataToJapanese(data) {
     return valMap[String(val)] || String(val);
   };
 
+  const alcoholValMap = {'none': '飲まない', 'occasionally': '時々', 'daily': '毎日'};
+
   const translated = {};
   for (const key in data) {
     const jpKey = keyMap[key] || key;
-    translated[jpKey] = translateValue(data[key]);
+    if (key === 'alcohol') {
+      translated[jpKey] = alcoholValMap[String(data[key])] || translateValue(data[key]);
+    } else {
+      translated[jpKey] = translateValue(data[key]);
+    }
   }
   return translated;
 }
