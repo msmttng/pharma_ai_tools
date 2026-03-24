@@ -235,7 +235,10 @@ function saveToSpreadsheet(data) {
   ];
 
   sheet.appendRow(row);
-  CacheService.getScriptCache().remove('submissions_cache');
+  const scriptCache = CacheService.getScriptCache();
+  scriptCache.remove('submissions_cache');     // 旧キー
+  scriptCache.remove('submissions_cache_v2');   // 旧キー
+  scriptCache.remove('submissions_cache_v3');   // 現行キー
 }
 
 /**
