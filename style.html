@@ -239,21 +239,21 @@ body {
 .ai-status {
     display: flex;
     align-items: center;
-    gap: 0.45rem;
-    padding: 0.4rem 0.75rem;
-    border-radius: 20px;
+    gap: 0.6rem;
+    padding: 0.7rem 1rem;
+    border-radius: var(--radius);
     background-color: var(--settings-bg);
     border: 1px solid var(--border);
-    width: fit-content;
-    font-size: 0.72rem;
-    font-weight: 500;
+    width: 100%;
+    font-size: 0.82rem;
+    font-weight: 600;
     color: var(--text-secondary);
     transition: var(--transition);
 }
 
 .ai-status-dot {
-    width: 8px;
-    height: 8px;
+    width: 10px;
+    height: 10px;
     border-radius: 50%;
     background-color: var(--text-secondary);
     flex-shrink: 0;
@@ -270,6 +270,7 @@ body {
     background-color: #EEF4FB;
     border-color: var(--c-info-border);
     color: var(--c-info-text);
+    font-weight: 700;
 }
 .ai-status.processing .ai-status-dot {
     background-color: #3B82F6;
@@ -286,6 +287,7 @@ body {
     background-color: var(--g-bg);
     border-color: var(--g-border);
     color: var(--g-text);
+    font-weight: 700;
 }
 .ai-status.done .ai-status-dot {
     background-color: var(--g-main);
@@ -296,6 +298,7 @@ body {
     background-color: var(--c-error-bg);
     border-color: var(--c-error-border);
     color: var(--c-error-text);
+    font-weight: 700;
 }
 .ai-status.error .ai-status-dot {
     background-color: var(--c-error-text);
