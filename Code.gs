@@ -112,7 +112,14 @@ function callGeminiAPI(prompt, imageBase64, mimeType) {
   if (!apiKey) throw new Error("Gemini API Key が設定されていません。GASのスクリプトプロパティを確認してください。");
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
-  const payload = { "contents": [{ "parts": [{ "text": prompt }, { "inlineData": { "mimeType": mimeType, "data": imageBase64 } }] }] };
+  const payload = {
+    "contents": [{ "parts": [{ "text": prompt }, { "inlineData": { "mimeType": mimeType, "data": imageBase64 } }] }],
+    "generationConfig": {
+      "thinkingConfig": {
+        "thinkingBudget": 0
+      }
+    }
+  };
 
   const options = {
     "method": "post",

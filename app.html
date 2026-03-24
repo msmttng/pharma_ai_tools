@@ -109,6 +109,32 @@ removeBtn.addEventListener('click', function(e) {
     clearImage();
 });
 
+var MAX_WIDTH = 1500;
+var JPEG_QUALITY = 0.85;
+var resizedMimeType = 'image/jpeg';
+
+function resizeImage(dataUrl) {
+    return new Promise(function(resolve) {
+        var img = new Image();
+        img.onload = function() {
+            var w = img.width;
+            var h = img.height;
+            if (w > MAX_WIDTH) {
+                h = Math.round(h * (MAX_WIDTH / w));
+                w = MAX_WIDTH;
+            }
+            var canvas = document.createElement('canvas');
+            canvas.width = w;
+            canvas.height = h;
+            var ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, w, h);
+            var resizedDataUrl = canvas.toDataURL('image/jpeg', JPEG_QUALITY);
+            resolve(resizedDataUrl);
+        };
+        img.src = dataUrl;
+    });
+}
+
 function handleFile(file) {
     if (!file.type.match('image.*')) {
         showToast('画像ファイル(JPEG/PNG)を選択してください');
@@ -118,10 +144,14 @@ function handleFile(file) {
 
     var reader = new FileReader();
     reader.onload = function(e) {
-        imagePreview.src = e.target.result;
-        previewContainer.style.display = 'flex';
-        base64Data = e.target.result.split(',')[1];
-        autoAnalyze();
+        var originalDataUrl = e.target.result;
+        resizeImage(originalDataUrl).then(function(resizedDataUrl) {
+            imagePreview.src = resizedDataUrl;
+            previewContainer.style.display = 'flex';
+            base64Data = resizedDataUrl.split(',')[1];
+            resizedMimeType = 'image/jpeg';
+            autoAnalyze();
+        });
     };
     reader.readAsDataURL(file);
 }
@@ -135,7 +165,7 @@ function clearImage() {
 }
 
 function getBase64() { return base64Data; }
-function getMimeType() { return currentFile ? currentFile.type : null; }
+function getMimeType() { return resizedMimeType; }
 
 // === Auto Analyze ===
 function autoAnalyze() {
