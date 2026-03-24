@@ -146,7 +146,7 @@ function saveToSpreadsheet(data) {
       '薬アレルギー', 'アレルギー詳細', '食品アレルギー', '食品詳細', '環境アレルギー',
       '副作用', '副作用詳細', '他院処方', '他院詳細', '市販薬', '市販薬詳細', 
       '飲食物', '飲食物詳細', '既往歴', '既往歴詳細', '運転', '高所', 'ソフトコンタクト', 
-      '酒', '煙草', 'ジェネリック', '備考', 'お薬手帳'
+      '酒', '煙草', 'ジェネリック', '備考', 'お薬手帳', 'データ元'
     ];
     sheet.getRange(1, 1, 1, headers.length).setValues([headers]).setBackground('#eeeeee').setFontWeight('bold');
     sheet.setFrozenRows(1);
@@ -230,7 +230,8 @@ function saveToSpreadsheet(data) {
     translate(data.smoking), 
     translate(data.generic), 
     data.memo || '',
-    bookletVal
+    bookletVal,
+    'AI読取'
   ];
 
   sheet.appendRow(row);
