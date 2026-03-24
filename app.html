@@ -13,9 +13,6 @@ var dropText = document.getElementById('drop-text');
 var modeCardTitle = document.getElementById('mode-card-title');
 var modeCardDesc = document.getElementById('mode-card-desc');
 var btnUpload = document.getElementById('btn-upload');
-var aiStatus = document.getElementById('ai-status');
-var aiStatusDot = document.getElementById('ai-status-dot');
-var aiStatusText = document.getElementById('ai-status-text');
 
 // === State ===
 var currentFile = null;
@@ -170,13 +167,6 @@ function clearImage() {
 function getBase64() { return base64Data; }
 function getMimeType() { return resizedMimeType; }
 
-// === AI Status ===
-function setAiStatus(state, customText) {
-    aiStatus.className = 'ai-status ' + state;
-    var labels = { idle: '待機中', processing: 'AI解析中...', done: '完了', error: 'エラー' };
-    aiStatusText.textContent = customText || labels[state] || state;
-}
-
 // === Auto Analyze ===
 function autoAnalyze() {
     if (currentMode === 'notebook') {
@@ -195,7 +185,6 @@ var clearBtnNotebook = document.getElementById('clear-btn-notebook');
 async function analyzeNotebook() {
     if (!getBase64()) return;
 
-    setAiStatus('processing', 'お薬手帳を解析中...');
     loadingText.textContent = modeConfig.notebook.loadingText;
     loadingOverlay.style.display = 'flex';
     resultNotebook.style.display = 'none';
@@ -212,7 +201,6 @@ async function analyzeNotebook() {
             var result = await response.json();
             if (result.status === 'success' && result.data) {
                 extractedText = result.data;
-                setAiStatus('done', '手帳解析完了');
             } else {
                 throw new Error(result.message || 'Unknown API Error');
             }
@@ -223,7 +211,6 @@ async function analyzeNotebook() {
         resultTextNotebook.value = extractedText;
         resultNotebook.style.display = 'flex';
     } catch (error) {
-        setAiStatus('error');
         resultTextNotebook.value = 'エラーが発生しました。\n詳細: ' + error.message;
         resultNotebook.style.display = 'flex';
     } finally {
@@ -243,7 +230,6 @@ clearBtnNotebook.addEventListener('click', function() {
     resultTextNotebook.value = '';
     resultNotebook.style.display = 'none';
     clearImage();
-    setAiStatus('idle');
 });
 
 // === Questionnaire ===
@@ -329,7 +315,6 @@ async function analyzeQuestionnaire() {
         return;
     }
 
-    setAiStatus('processing', '問診票を解析・送信中...');
     loadingText.textContent = modeConfig.questionnaire.loadingText;
     loadingOverlay.style.display = 'flex';
     resultNotebook.style.display = 'none';
@@ -342,7 +327,6 @@ async function analyzeQuestionnaire() {
         var result = await response.json();
 
         if (result.status === 'success') {
-            setAiStatus('done', '問診票処理完了');
             lastQuestionnaireData = result.data;
             resultQuestionnaire.style.display = 'flex';
             document.getElementById('success-message-questionnaire').style.display = 'flex';
@@ -353,7 +337,6 @@ async function analyzeQuestionnaire() {
             throw new Error(result.message || 'スプレッドシートへの保存に失敗しました。');
         }
     } catch (error) {
-        setAiStatus('error');
         resultQuestionnaire.style.display = 'flex';
         document.getElementById('error-message-questionnaire').style.display = 'flex';
         document.getElementById('error-text-questionnaire').textContent = error.message;
@@ -378,7 +361,6 @@ clearBtnQ.addEventListener('click', function() {
     lastQuestionnaireData = null;
     hideQuestionnaireResult();
     clearImage();
-    setAiStatus('idle');
 });
 
 // === Utils ===
